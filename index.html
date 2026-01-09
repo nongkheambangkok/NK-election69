@@ -3,16 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-
-</script>
-<script src="config.js"></script>
-<script src="data.js"></script>
-
-    <title>กรุงเทพมหานคร เขตเลือกตั้งที่ 4</title>
+    <title>ระบบตรวจสอบหน่วยเลือกตั้ง</title>
     
+    <!-- Libraries -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
     <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Import Config and Data -->
+    <script src="config.js"></script>
+    <script src="data.js"></script>
 
     <style>
         /* =========================================
@@ -274,8 +274,8 @@
                 
                 <div class="scroll-wrapper">
                     <div style="padding-bottom: 2rem; text-align:center;">
-                        <h1 style="font-size: 2.8rem; color:#414141; margin-bottom:0.5rem;">กรุงเทพมหานคร<br>เขตเลือกตั้งที่ 4</h1>
-                        <h2 style="font-size: 2.1rem; color:#00744b;">เขตคลองเตยและเขตวัฒนา</h2>
+                        <h1 style="font-size: 2.8rem; color:#414141; margin-bottom:0.5rem;" id="header-title">...</h1>
+                        <h2 style="font-size: 2.1rem; color:#00744b;" id="header-subtitle">...</h2>
                     </div>
                     <div id="timeline-container"></div>
                     <button class="mobile-only-btn" onclick="switchTab('map', document.querySelectorAll('.nav-tab')[1])" 
@@ -309,12 +309,8 @@
                     <div class="search-box">
                         <select id="districtSelect" class="search-dropdown" onchange="updateUnitDropdown()">
                             <option value="">เลือกแขวง...</option>
-                            <option value="แขวงคลองเตย">คลองเตย</option>
-                            <option value="แขวงคลองตัน">คลองตัน</option>
-                            <option value="แขวงพระโขนง">พระโขนง</option>
-                            <option value="แขวงคลองเตยเหนือ">คลองเตยเหนือ</option>
-                            <option value="แขวงคลองตันเหนือ">คลองตันเหนือ</option>
-                            <option value="แขวงพระโขนงเหนือ">พระโขนงเหนือ</option>
+                            <option value="แขวงหนองแขม">หนองแขม</option>
+                            <option value="แขวงหนองค้างพลู">หนองค้างพลู</option>
                         </select>
                         <select id="unitSelect" class="search-dropdown" onchange="searchUnit()">
                             <option value="">หน่วยที่...</option>
@@ -323,12 +319,8 @@
                     </div>
 
                     <div class="scroll-btn-container">
-                        <button class="filter-btn" onclick="filterMap('แขวงคลองเตย', this)">คลองเตย</button>
-                        <button class="filter-btn" onclick="filterMap('แขวงคลองตัน', this)">คลองตัน</button>
-                        <button class="filter-btn" onclick="filterMap('แขวงพระโขนง', this)">พระโขนง</button>
-                        <button class="filter-btn" onclick="filterMap('แขวงคลองเตยเหนือ', this)">คลองเตยเหนือ</button>
-                        <button class="filter-btn" onclick="filterMap('แขวงคลองตันเหนือ', this)">คลองตันเหนือ</button>
-                        <button class="filter-btn" onclick="filterMap('แขวงพระโขนงเหนือ', this)">พระโขนงเหนือ</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงหนองแขม', this)">หนองแขม</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงหนองค้างพลู', this)">หนองค้างพลู</button>
                     </div>
                 </div>
                 <div id="map"></div>
@@ -479,10 +471,12 @@
                 maxZoom: 19 
             }).addTo(map);
 
-            map.fitBounds(strictBounds);
-            setTimeout(() => {
-                map.setMinZoom(map.getZoom()); 
-            }, 500);
+            if(strictBounds) {
+                map.fitBounds(strictBounds);
+                setTimeout(() => {
+                    map.setMinZoom(map.getZoom()); 
+                }, 500);
+            }
 
             markerGroup = L.layerGroup().addTo(map);
             renderMarkers(units);
@@ -681,6 +675,12 @@
         function closePopupDirect() { document.getElementById('info-overlay').classList.remove('visible'); }
 
         window.addEventListener('load', () => { 
+            // Header Config
+            if(typeof HEADER_CONFIG !== 'undefined') {
+                document.getElementById('header-title').innerHTML = HEADER_CONFIG.title;
+                document.getElementById('header-subtitle').innerHTML = HEADER_CONFIG.subtitle;
+            }
+
             checkResponsive();
             initTimeline();
             initMap();
