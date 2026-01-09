@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
+
+</script>
+<script src="config.js"></script>
+<script src="data.js"></script>
+
+    <title>กรุงเทพมหานคร เขตเลือกตั้งที่ 4</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;600;700&family=Sarabun:wght@400;600&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* =========================================
+           CORE STYLES
+           ========================================= */
+        html { font-size: 62.5%; height: 100%; } 
+        body {
+            font-family: 'Sarabun', sans-serif; 
+            background-color: #f0f4f8;
+            margin: 0; height: 100%; width: 100%;
+            overflow: hidden; overscroll-behavior: none;
+        }
+        h1, h2, h3, .nav-tab, .badge, .filter-btn, .desktop-toggle-btn { font-family: 'Prompt', sans-serif; }
+
+        /* UI Components */
+        .glass-panel, .info-card { background: #fff; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
+        
+        /* Lightbox */
+        .lightbox-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 2000; background-color: rgba(0, 0, 0, 0.9);
+            display: flex; justify-content: center; align-items: center;
+            opacity: 0; visibility: hidden; transition: opacity 0.2s ease;
+        }
+        .lightbox-overlay.active { opacity: 1; visibility: visible; }
+        .lightbox-img { max-width: 95vw; max-height: 90vh; object-fit: contain; }
+        .lightbox-close-btn {
+            position: absolute; top: 2rem; right: 2rem; width: 4rem; height: 4rem;
+            background: rgba(255, 255, 255, 0.3); border-radius: 50%; cursor: pointer; z-index: 2001;
+        }
+        .lightbox-close-btn::before, .lightbox-close-btn::after {
+            content: ''; position: absolute; top: 50%; left: 50%; width: 2rem; height: 2px; background: white; transform-origin: center;
+        }
+        .lightbox-close-btn::before { transform: translate(-50%, -50%) rotate(45deg); }
+        .lightbox-close-btn::after { transform: translate(-50%, -50%) rotate(-45deg); }
+
+        /* Layout Structure */
+        .game-frame {
+            position: relative; background-color: #f0f4f8;
+            width: 100%; height: 100%; display: flex; flex-direction: column; overflow: hidden;
+        }
+        
+        /* Mobile Nav */
+        .top-nav {
+            flex-shrink: 0; height: 6rem; background: #fff; display: flex;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); z-index: 100;
+        }
+        .nav-tab {
+            flex: 1; border: none; background: #fff;
+            font-size: 1.8rem; font-weight: bold; color: #aaa;
+            cursor: pointer; border-bottom: 3px solid transparent; transition: color 0.2s;
+        }
+        .nav-tab.active { color: #00744b; border-bottom-color: #00744b; background: #f9fbfd; }
+
+        /* Content Area */
+        .content-area { flex: 1; position: relative; overflow: hidden; display: flex; width: 100%; }
+        .tab-view { width: 100%; height: 100%; display: none; flex-direction: column; }
+        .tab-view.active { display: flex; }
+
+        /* Desktop Switcher - HIDDEN ON MOBILE BY DEFAULT */
+        .desktop-switcher {
+            display: none; /* ซ่อนไว้ก่อนในมือถือ */
+        }
+
+        /* Scrollable content inside views */
+        .scroll-wrapper { flex: 1; overflow-y: auto; padding: 2rem; }
+
+        /* Timeline Styles */
+        .timeline-item { display: flex; gap: 1.5rem; position: relative; padding-bottom: 3rem; }
+        .timeline-item::before {
+            content: ''; position: absolute; left: 1.4rem; top: 3.5rem; bottom: 0; width: 0.3rem; background: #e0e0e0;
+        }
+        .timeline-item:last-child::before { display: none; }
+        .t-circle {
+            width: 3.5rem; height: 3.5rem; border-radius: 50%; flex-shrink: 0; z-index: 1;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.8rem; color: white; border: 0.3rem solid white;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: 'Prompt';
+        }
+        .t-status-done .t-circle { background: #00744b; }
+        .t-status-active .t-circle { background: #FF9800; }
+        .t-status-future .t-circle { background: #ddd; color: #aaa; }
+        
+        .t-content h3 { font-size: 1.8rem; font-weight: bold; margin: 0; color: #333; }
+        .t-content p { font-size: 1.5rem; color: #666; margin: 0.4rem 0; }
+        .t-content .t-date { font-size: 1.4rem; font-weight: 600; color: #888; }
+
+        /* FAQ Styles */
+        .faq-container { display: flex; flex-direction: column; gap: 1.5rem; padding-bottom: 4rem; }
+        details { border: 1px solid #eee; border-radius: 1rem; overflow: hidden; background: #fff; }
+        summary {
+            padding: 1.5rem; cursor: pointer; font-weight: 600; font-size: 1.6rem; color: #333;
+            list-style: none; display: flex; justify-content: space-between; align-items: center;
+        }
+        summary::-webkit-details-marker { display: none; }
+        summary::after { content: '+'; font-size: 2rem; color: #aaa; }
+        details[open] summary::after { content: '−'; color: #00744b; }
+        details[open] summary { background: #e8f5e9; color: #00744b; }
+        .faq-answer { padding: 1.5rem; font-size: 1.5rem; color: #555; line-height: 1.6; }
+
+        /* Map Styles */
+        #map { width: 100%; height: 100%; z-index: 1; }
+        
+        /* Updated Filter Container */
+        .filter-container {
+            position: absolute; top: 1.5rem; left: 1rem; right: 1rem; 
+            z-index: 500; pointer-events: none; 
+            display: flex; flex-direction: column; gap: 0.8rem;
+        }
+        .search-box {
+            pointer-events: auto; background: white; padding: 0.5rem; 
+            border-radius: 3rem; box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+            display: flex; gap: 0.5rem; width: 100%; max-width: 400px; margin: 0 auto;
+            align-items: center;
+        }
+        
+        /* Dropdown Styles */
+        .search-dropdown {
+            border: none; outline: none; background: transparent;
+            font-size: 1.6rem; color: #333; font-family: 'Sarabun';
+            padding: 0.5rem; cursor: pointer;
+            border-right: 1px solid #eee;
+        }
+        .search-dropdown:last-of-type { border-right: none; }
+        #districtSelect { flex: 2; width: 50%; }
+        #unitSelect { flex: 1; width: 30%; }
+
+        .search-btn {
+            background: #00744b; color: white; border: none; 
+            width: 3.5rem; height: 3.5rem; border-radius: 50%; 
+            display: flex; justify-content: center; align-items: center;
+            font-size: 1.6rem; cursor: pointer; flex-shrink: 0;
+            margin-right: 0.2rem;
+        }
+
+        .scroll-btn-container {
+            pointer-events: auto;
+            display: flex; 
+            flex-direction: row;      /* บังคับเรียงแนวนอน */
+            justify-content: flex-start; /* ชิดซ้าย */
+            align-items: center;
+            gap: 0.8rem; 
+            
+            overflow-x: auto;         /* เลื่อนแนวนอน */
+            overflow-y: hidden;       
+            
+            width: 100%;              
+            max-width: 100%;
+            padding: 5px 5px 10px 5px; 
+            
+            -webkit-overflow-scrolling: touch; 
+            -ms-overflow-style: none; 
+            scrollbar-width: none;
+        }
+        .scroll-btn-container::-webkit-scrollbar { display: none; }
+
+        .filter-btn {
+            flex: 0 0 auto;       /* ห้ามย่อปุ่ม */
+            white-space: nowrap;
+            background: white; border: 1px solid #ddd;
+            padding: 0.6rem 1.4rem; border-radius: 2rem; 
+            font-size: 1.6rem; font-weight: 600; color: #555;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1); cursor: pointer;
+            transition: all 0.2s;
+        }
+        /* Active State will be handled by JS for colors */
+        .filter-btn.active { color: white; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.25); border-color: transparent;}
+
+        /* Popup */
+        .info-popup-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1000; display: flex; justify-content: center; align-items: flex-end;
+            background-color: rgba(0,0,0,0.5); opacity: 0; visibility: hidden; transition: opacity 0.2s;
+        }
+        .info-popup-overlay.visible { opacity: 1; visibility: visible; }
+        .info-card {
+            width: 100%; max-height: 80vh; border-radius: 2rem 2rem 0 0; padding: 2rem;
+            transform: translateY(100%); transition: transform 0.3s cubic-bezier(0.1, 0.7, 0.1, 1);
+            display: flex; flex-direction: column; overflow-y: auto;
+        }
+        .info-popup-overlay.visible .info-card { transform: translateY(0); }
+        .close-btn-circle { position: absolute; top: 0.5rem; right: 0.5rem; background: #eee; width: 3rem; height: 3rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.6rem; cursor: pointer; z-index: 20; }
+        .badge { display: inline-flex; align-items: center; justify-content: center; padding: 0.4rem 1rem; border-radius: 1.2rem; font-size: 1.3rem; font-weight: bold; margin-right: 0.5rem; }
+        .badge-out { background: #FFE5D9; color: #D64545; }
+        .badge-in { background: #E3F2FD; color: #1E88E5; }
+        .badge-nav { background: #3474a8; color: white; text-decoration: none; padding: 0.4rem 1.2rem; border-radius: 1.2rem; font-size: 1.3rem; display: inline-block; margin-top: 0.5rem;}
+        .gallery-scroll { display: flex; overflow-x: auto; gap: 1rem; padding: 1rem 0; flex-shrink: 0;}
+        .gallery-scroll img { height: 10rem; width: auto; border-radius: 0.8rem; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        /* =========================================
+           DESKTOP / TABLET MODE
+           ========================================= */
+        @media (min-width: 1024px) {
+            .game-frame { flex-direction: row; }
+            .top-nav { display: none; }
+            
+            .left-panel-content {
+                width: 35%; min-width: 380px; height: 100%; border-right: 1px solid #ddd;
+                display: none !important; 
+                flex-direction: column; 
+                background: white;
+                z-index: 2;
+                box-shadow: 2px 0 10px rgba(0,0,0,0.05);
+            }
+            .left-panel-content.desktop-active { 
+                display: flex !important; 
+                animation: fadeIn 0.3s ease;
+            }
+            
+            /* SHOW DESKTOP SWITCHER ONLY HERE */
+            .desktop-switcher { 
+                flex-shrink: 0;
+                display: flex; /* แสดงผลเฉพาะหน้าจอใหญ่ */
+                justify-content: center; gap: 1rem; 
+                padding: 2rem 0; 
+                background: #fff;
+                border-bottom: 1px solid #f0f0f0;
+                position: sticky; top: 0; z-index: 10;
+            }
+            .desktop-toggle-btn {
+                padding: 1rem 3rem; border: 1px solid #ddd; border-radius: 3rem;
+                background: white; cursor: pointer; font-size: 1.8rem; transition: all 0.2s;
+                color: #888;
+            }
+            .desktop-toggle-btn.active { 
+                background: #00744b; color: white; border-color: #00744b; 
+                box-shadow: 0 4px 6px rgba(0,116,75,0.2);
+            }
+            .desktop-toggle-btn:hover:not(.active) { background: #f9f9f9; }
+
+            .mobile-only-btn { display: none; }
+            
+            #view-map { display: block !important; flex: 1; position: relative; }
+            
+            .info-popup-overlay { align-items: center; }
+            .info-card { width: 450px; border-radius: 1rem; transform: scale(0.95); opacity: 0; }
+            .info-popup-overlay.visible .info-card { transform: scale(1); opacity: 1; }
+        }
+
+        @keyframes fadeIn { from { opacity: 0.9; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="mobile-mode"> 
+
+    <div class="game-frame">
+        <nav class="top-nav">
+            <button class="nav-tab active" onclick="switchTab('timeline', this)">📅 ไทม์ไลน์</button>
+            <button class="nav-tab" onclick="switchTab('map', this)">🗺️ แผนที่</button>
+            <button class="nav-tab" onclick="switchTab('guide', this)">📖 คู่มือ</button>
+        </nav>
+
+        <div class="content-area">
+            
+            <div id="view-timeline" class="tab-view left-panel-content active">
+                <div class="desktop-switcher">
+                    <button class="desktop-toggle-btn active" onclick="switchDesktopPanel('timeline')">ปฏิทิน</button>
+                    <button class="desktop-toggle-btn" onclick="switchDesktopPanel('guide')">คู่มือประชาชน</button>
+                </div>
+                
+                <div class="scroll-wrapper">
+                    <div style="padding-bottom: 2rem; text-align:center;">
+                        <h1 style="font-size: 2.8rem; color:#414141; margin-bottom:0.5rem;">กรุงเทพมหานคร<br>เขตเลือกตั้งที่ 4</h1>
+                        <h2 style="font-size: 2.1rem; color:#00744b;">เขตคลองเตยและเขตวัฒนา</h2>
+                    </div>
+                    <div id="timeline-container"></div>
+                    <button class="mobile-only-btn" onclick="switchTab('map', document.querySelectorAll('.nav-tab')[1])" 
+                        style="width: 100%; padding: 1.2rem; margin-top: 2rem; background: #eee; border-radius: 2rem; border:none; font-weight:bold; font-size:1.6rem;">ไปที่แผนที่ 👉</button>
+                </div>
+            </div>
+
+            <div id="view-guide" class="tab-view left-panel-content">
+                <div class="desktop-switcher">
+                    <button class="desktop-toggle-btn" onclick="switchDesktopPanel('timeline')">ปฏิทิน</button>
+                    <button class="desktop-toggle-btn active" onclick="switchDesktopPanel('guide')">คู่มือประชาชน</button>
+                </div>
+
+                <div class="scroll-wrapper">
+                    <h1 style="font-size: 2.2rem; color:#333; margin-bottom:1.5rem; text-align:center;">คู่มือเลือกตั้ง ฉบับย่อ 🗳️</h1>
+                    <div class="faq-container">
+                    <details open><summary>1. ต้องเตรียมเอกสารอะไรบ้าง?</summary><div class="faq-answer">หลักฐานสำคัญที่สุดคือ <b>"บัตรประชาชน"</b> (หมดอายุก็ใช้ได้) หรือหลักฐานอื่นของทางราชการที่มีรูปถ่ายและเลขประจำตัวประชาชน เช่น ใบขับขี่, พาสปอร์ต, หรือแอปพลิเคชัน ThaID</div></details>
+                    <details><summary>2. ตรวจสอบสิทธิเลือกตั้งที่ไหน?</summary><div class="faq-answer">สามารถตรวจสอบรายชื่อผู้มีสิทธิเลือกตั้งได้จากหนังสือแจ้งเจ้าบ้าน หรือผ่านเว็บไซต์ของกรมการปกครอง (Bora Portal) และแอปพลิเคชัน Smart Vote</div></details>
+                    <details><summary>3. ถ้าไม่ว่างวันจริงทำอย่างไร?</summary><div class="faq-answer">ท่านสามารถลงทะเบียน <b>"เลือกตั้งล่วงหน้า"</b> ได้ในช่วงวันที่ 20 ธ.ค. 68 - 5 ม.ค. 69 โดยสามารถยื่นคำขอต่อนายทะเบียนสำนักงานเขต หรือผ่านทางออนไลน์</div></details>
+                    <details><summary>4. คูหาเปิดกี่โมง?</summary><div class="faq-answer">คูหาเลือกตั้งเปิดให้ลงคะแนนตั้งแต่เวลา <b>08.00 น. ถึง 17.00 น.</b> โปรดวางแผนการเดินทางเพื่อไปใช้สิทธิได้ทันเวลา</div></details>
+                    <details><summary>5. กากบาทอย่างไรไม่ให้เป็นบัตรเสีย?</summary><div class="faq-answer">ทำเครื่องหมาย <b>"กากบาท (X)"</b> ลงในช่องทำเครื่องหมายเพียงเครื่องหมายเดียว ห้ามขีดเขียนข้อความอื่นหรือทำเครื่องหมายสัญลักษณ์อื่นใด</div></details>
+                    <details><summary>6. ข้อห้ามที่สำคัญในวันเลือกตั้ง</summary><div class="faq-answer">❌ ห้ามถ่ายรูปภายในคูหา หรือบัตรเลือกตั้ง<br>❌ ห้ามใส่เครื่องแต่งกายที่มีโลโก้พรรค หรือผู้สมัคร<br>❌ ห้ามแสดงบัตรเลือกตั้งให้ผู้อื่นเห็น<br>❌ ห้ามโฆษณา หาเสียง ให้ผู้สมัคร หรือพรรคการเมือง<br>❌ ห้ามกระทำการใด อันเป็นเหตุในการขัดขวางการปฏิบัติหน้าที่ของเจ้าพนักงาน หรือกระทบต่อการใช้สิทธิของผู้อื่น</div></details>
+                </div>
+                    <button class="mobile-only-btn" onclick="switchTab('map', document.querySelectorAll('.nav-tab')[1])" 
+                        style="width: 100%; padding: 1.2rem; margin-top: 2rem; background: #eee; border-radius: 2rem; border:none; font-weight:bold; font-size:1.6rem;">ไปที่แผนที่ 👉</button>
+                </div>
+            </div>
+
+            <div id="view-map" class="tab-view">
+                <div class="filter-container">
+                    <div class="search-box">
+                        <select id="districtSelect" class="search-dropdown" onchange="updateUnitDropdown()">
+                            <option value="">เลือกแขวง...</option>
+                            <option value="แขวงคลองเตย">คลองเตย</option>
+                            <option value="แขวงคลองตัน">คลองตัน</option>
+                            <option value="แขวงพระโขนง">พระโขนง</option>
+                            <option value="แขวงคลองเตยเหนือ">คลองเตยเหนือ</option>
+                            <option value="แขวงคลองตันเหนือ">คลองตันเหนือ</option>
+                            <option value="แขวงพระโขนงเหนือ">พระโขนงเหนือ</option>
+                        </select>
+                        <select id="unitSelect" class="search-dropdown" onchange="searchUnit()">
+                            <option value="">หน่วยที่...</option>
+                            </select>
+                        <button class="search-btn" onclick="searchUnit()">🔍</button>
+                    </div>
+
+                    <div class="scroll-btn-container">
+                        <button class="filter-btn" onclick="filterMap('แขวงคลองเตย', this)">คลองเตย</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงคลองตัน', this)">คลองตัน</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงพระโขนง', this)">พระโขนง</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงคลองเตยเหนือ', this)">คลองเตยเหนือ</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงคลองตันเหนือ', this)">คลองตันเหนือ</button>
+                        <button class="filter-btn" onclick="filterMap('แขวงพระโขนงเหนือ', this)">พระโขนงเหนือ</button>
+                    </div>
+                </div>
+                <div id="map"></div>
+            </div>
+
+        </div>
+
+        <div id="info-overlay" class="info-popup-overlay" onclick="closePopup(event)">
+            <div class="info-card" onclick="event.stopPropagation()">
+                <div class="close-btn-circle" onclick="closePopupDirect()">✕</div>
+                <h2 id="p-name" style="font-size: 2rem; font-weight: 700; color: #333; line-height: 1.2; padding-right: 3.5rem;">-</h2>
+                <p id="p-sub" style="font-size: 1.6rem; color: #888; margin-top: 0.5rem;">-</p>
+                <div style="margin-top: 1rem;">
+                    <span id="p-unit" style="font-size: 1.4rem; color: #555; background:#f5f5f5; padding: 0.3rem 1rem; border-radius: 1.5rem;"></span>
+                </div>
+                <div id="p-gallery" class="gallery-scroll"></div>
+                <div style="margin-top: 1.5rem; padding: 1rem; background: #f9f9f9; border-radius: 1rem; border: 1px dashed #ddd;">
+                    <p style="font-size: 1.3rem; font-weight: 700; color: #555;">หมายเหตุ:</p>
+                    <p id="p-note" style="font-size: 1.4rem; color: #333;">-</p>
+                </div>
+                <a id="btn-navigate" href="#" target="_blank" class="badge-nav" style="text-align:center; display:block; margin-top:1.5rem;">📍 เปิดแผนที่นำทาง</a>
+                <div style="height: 2rem;"></div>
+            </div>
+        </div>
+
+        <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
+            <div class="lightbox-close-btn" onclick="closeLightbox()"></div>
+            <img id="lightbox-img" class="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        let map;
+        let markerGroup;
+        function getSubDistrictColor(details) {
+            // Check exactly which subdistrict it belongs to by matching the start string
+            for (const [name, color] of Object.entries(subDistrictColors)) {
+                if (details.startsWith(name + " ")) {
+                    return color;
+                }
+            }
+            return "#6c757d"; // Default Grey
+        }
+
+        // LOGIC
+        function checkResponsive() {
+            const isDesktop = window.innerWidth >= 1024;
+            if (isDesktop) {
+                document.body.classList.remove('mobile-mode');
+                if (!document.querySelector('.left-panel-content.desktop-active')) {
+                   switchDesktopPanel('timeline');
+                }
+            } else {
+                document.body.classList.add('mobile-mode');
+            }
+            if (map) setTimeout(() => map.invalidateSize(), 200);
+        }
+
+        function switchTab(tabId, btn) {
+            if (window.innerWidth >= 1024) return;
+            if(btn) { document.querySelectorAll('.nav-tab').forEach(b => b.classList.remove('active')); btn.classList.add('active'); }
+            
+            document.querySelectorAll('.tab-view').forEach(v => v.classList.remove('active'));
+            document.getElementById('view-' + tabId).classList.add('active');
+            
+            if(tabId === 'map' && map) {
+                setTimeout(() => {
+                    map.invalidateSize();
+                    map.fitBounds(calculateBounds(units)); 
+                }, 100);
+            }
+        }
+
+        function switchDesktopPanel(panelId) {
+            document.querySelectorAll('.left-panel-content').forEach(el => el.classList.remove('desktop-active'));
+            document.getElementById('view-' + panelId).classList.add('desktop-active');
+            
+            document.querySelectorAll('.desktop-toggle-btn').forEach(btn => {
+                const isTarget = (panelId === 'timeline' && btn.innerText.includes('ปฏิทิน')) || 
+                                 (panelId === 'guide' && btn.innerText.includes('คู่มือ'));
+                if(isTarget) btn.classList.add('active'); else btn.classList.remove('active');
+            });
+        }
+
+            function initTimeline() {
+            const container = document.getElementById('timeline-container');
+            const now = new Date(); 
+
+            let html = '';
+            timelineData.forEach(item => {
+                let status = 'future'; 
+                if (now > item.endDate) {
+                    status = 'done';
+                } else if (now >= item.startDate) {
+                    status = 'active'; 
+                }
+
+                let statusClass = status === 'done' ? 't-status-done' : (status === 'active' ? 't-status-active' : 't-status-future');
+                let icon = status === 'done' ? '✓' : (status === 'active' ? '⏳' : '🔒');
+                
+                html += `
+                    <div class="timeline-item ${statusClass}">
+                        <div class="t-circle">${icon}</div>
+                        <div class="t-content">
+                            <span class="t-date">${item.dateText}</span>
+                            <h3>${item.title}</h3>
+                            ${item.desc ? `<p style="font-size:1.4rem; color:#666;">${item.desc}</p>` : ''}
+                        </div>
+                    </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        function calculateBounds(data) {
+            if (data.length === 0) return null;
+            let lats = data.map(u => u.lat);
+            let lngs = data.map(u => u.lng);
+            let minLat = Math.min(...lats);
+            let maxLat = Math.max(...lats);
+            let minLng = Math.min(...lngs);
+            let maxLng = Math.max(...lngs);
+            
+            const pad = 0.01; 
+            return L.latLngBounds(
+                [minLat - pad, minLng - pad],
+                [maxLat + pad, maxLng + pad]
+            );
+        }
+
+        function initMap() {
+            const strictBounds = calculateBounds(units);
+            
+            map = L.map('map', { 
+                zoomControl: true,
+                attributionControl: false,
+                maxBounds: strictBounds,
+                maxBoundsViscosity: 1.0, 
+                fadeAnimation: false,    
+                zoomAnimation: true,     
+                markerZoomAnimation: false 
+            });
+
+            // Move Zoom Control to Bottom Right
+            map.zoomControl.setPosition('bottomright');
+
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { 
+                maxZoom: 19 
+            }).addTo(map);
+
+            map.fitBounds(strictBounds);
+            setTimeout(() => {
+                map.setMinZoom(map.getZoom()); 
+            }, 500);
+
+            markerGroup = L.layerGroup().addTo(map);
+            renderMarkers(units);
+        }
+
+        function renderMarkers(data) {
+            if (markerGroup) markerGroup.clearLayers();
+            data.forEach(unit => {
+                let markerBg = getSubDistrictColor(unit.details_range);
+                let textColor = "white";
+                // Adjust text color for yellow background
+                if(markerBg === "#ffc107") textColor = "#202020";
+
+                let label = unit.details_range.includes("หน่วยที่") ? unit.details_range.split("หน่วยที่")[1].trim() : "-";
+
+                // Marker CSS with nowrap
+                let customIcon = L.divIcon({
+                    className: 'custom-pin',
+                    html: `<div style="background-color: ${markerBg}; color: ${textColor}; padding: 0.2rem 0.6rem; border-radius: 4px; border: 1px solid white; font-size: 1.2rem; font-weight: bold; width: fit-content; min-width: 2.5rem; text-align: center; white-space: nowrap; box-shadow: 0 2px 2px rgba(0,0,0,0.2);">${label}</div>`,
+                    iconSize: [30, 30], iconAnchor: [15, 15]
+                });
+
+                const marker = L.marker([unit.lat, unit.lng], { icon: customIcon });
+                marker.on('click', () => openPopup(unit));
+                markerGroup.addLayer(marker);
+            });
+        }
+
+        // --- NEW: DYNAMIC DATA PREPARATION ---
+        let districtUnitMap = {}; // Will store { "แขวง...": Set(1, 2, 5, ...) }
+
+        function initDistrictData() {
+            districtUnitMap = {};
+            units.forEach(u => {
+                // Parse "แขวงคลองเตย หน่วยที่ 1-6"
+                let parts = u.details_range.split("หน่วยที่");
+                if(parts.length < 2) return;
+                
+                let district = parts[0].trim();
+                let rangeStr = parts[1].trim();
+                
+                if(!districtUnitMap[district]) {
+                    districtUnitMap[district] = new Set();
+                }
+                
+                // Parse Range: "1-6" or "26, 29" or "7"
+                let ranges = rangeStr.split(",");
+                ranges.forEach(r => {
+                    r = r.trim();
+                    if(r.includes("-")) {
+                        let [start, end] = r.split("-").map(x => parseInt(x));
+                        for(let i=start; i<=end; i++) {
+                            districtUnitMap[district].add(i);
+                        }
+                    } else {
+                        districtUnitMap[district].add(parseInt(r));
+                    }
+                });
+            });
+        }
+
+        // --- UPDATED: POPULATE UNIT DROPDOWN BASED ON DISTRICT ---
+        function updateUnitDropdown() {
+            const districtSelect = document.getElementById('districtSelect');
+            const unitSelect = document.getElementById('unitSelect');
+            const selectedDistrict = districtSelect.value;
+            
+            // Clear existing options
+            unitSelect.innerHTML = '<option value="">หน่วยที่...</option>';
+            
+            if(!selectedDistrict || !districtUnitMap[selectedDistrict]) return;
+            
+            // Get units and sort numerically
+            const unitList = Array.from(districtUnitMap[selectedDistrict]).sort((a,b) => a - b);
+            
+            unitList.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u;
+                opt.innerText = u;
+                unitSelect.appendChild(opt);
+            });
+        }
+
+        function searchUnit() {
+            const district = document.getElementById('districtSelect').value;
+            const unitVal = document.getElementById('unitSelect').value;
+            
+            if (!district) return; 
+            if (!unitVal) return;
+
+            const unitNum = parseInt(unitVal);
+
+            // ค้นหาใน Array with STRICT filtering
+            const found = units.find(u => {
+                if (!u.details_range.startsWith(district + " ")) return false;
+                const part = u.details_range.split("หน่วยที่")[1];
+                if (!part) return false;
+                const rangeStr = part.trim();
+                if (rangeStr.includes("-")) {
+                    const [min, max] = rangeStr.split("-").map(n => parseInt(n));
+                    return unitNum >= min && unitNum <= max;
+                } else if (rangeStr.includes(",")) {
+                        const nums = rangeStr.split(",").map(n => parseInt(n.trim()));
+                        return nums.includes(unitNum);
+                } else {
+                    return parseInt(rangeStr) === unitNum;
+                }
+            });
+
+            if (found) {
+                // *** FIX: Force re-render markers for the searched district ***
+                // This ensures if user was filtering another district, we switch to this one.
+                renderMarkers(units.filter(u => u.details_range.startsWith(district + " ")));
+                
+                // Update Button UI to match the new district
+                document.querySelectorAll('.filter-btn').forEach(b => {
+                    // Check if button text matches district name (remove "แขวง" prefix for matching if needed, 
+                    // or match onclick attribute which is safer)
+                    if (b.getAttribute('onclick').includes(`'${district}'`)) {
+                        b.classList.add('active');
+                        const activeColor = subDistrictColors[district];
+                        b.style.backgroundColor = activeColor;
+                        b.style.borderColor = activeColor;
+                        b.style.color = (activeColor === "#ffc107") ? "#202020" : "white";
+                    } else {
+                        b.classList.remove('active');
+                        b.style.backgroundColor = 'white';
+                        b.style.color = '#555';
+                        b.style.borderColor = '#ddd';
+                    }
+                });
+
+                map.setView([found.lat, found.lng], 18);
+                openPopup(found);
+            } else {
+                alert("ไม่พบข้อมูลหน่วยเลือกตั้งที่ระบุ");
+            }
+        }
+
+        function filterMap(type, btn) {
+            // Reset all buttons style
+            document.querySelectorAll('.filter-btn').forEach(b => {
+                b.classList.remove('active');
+                b.style.backgroundColor = 'white';
+                b.style.color = '#555';
+                b.style.borderColor = '#ddd';
+            }); 
+            
+            // Set active button style
+            btn.classList.add('active');
+            const activeColor = subDistrictColors[type] || '#00744b';
+            btn.style.backgroundColor = activeColor;
+            btn.style.borderColor = activeColor;
+            // Adjust text color for yellow
+            btn.style.color = (activeColor === "#ffc107") ? "#202020" : "white";
+
+            // Strict Filter
+            const filteredUnits = units.filter(u => u.details_range.startsWith(type + " "));
+            renderMarkers(filteredUnits);
+
+            // ZOOM TO FIT BOUNDS
+            if (filteredUnits.length > 0) {
+                const bounds = calculateBounds(filteredUnits);
+                if (bounds) {
+                    map.fitBounds(bounds, { padding: [50, 50] }); 
+                }
+            }
+        }
+
+        function openLightbox(src) {
+            document.getElementById('lightbox-img').src = src;
+            document.getElementById('lightbox').classList.add('active');
+        }
+        function closeLightbox() {
+            document.getElementById('lightbox').classList.remove('active');
+        }
+
+        function openPopup(data) {
+            document.getElementById('p-name').innerText = data.name;
+            document.getElementById('p-sub').innerText = data.details_range;
+            document.getElementById('p-unit').innerText = data.unit_count;
+            document.getElementById('p-note').innerText = data.note || "-";
+            
+            const gallery = document.getElementById('p-gallery');
+            if(data.images && data.images.length > 0) {
+                 gallery.innerHTML = data.images.map(img => `<img src="${img}" onclick="openLightbox('${img}')">`).join('');
+            } else {
+                 gallery.innerHTML = "";
+            }
+            
+            document.getElementById('btn-navigate').href = `https://www.google.com/maps/search/?api=1&query=${data.lat},${data.lng}`;
+            document.getElementById('info-overlay').classList.add('visible');
+        }
+
+        function closePopup(e) { if (e.target.id === 'info-overlay') closePopupDirect(); }
+        function closePopupDirect() { document.getElementById('info-overlay').classList.remove('visible'); }
+
+        window.addEventListener('load', () => { 
+            checkResponsive();
+            initTimeline();
+            initMap();
+            // Changed from initSearchDropdowns to initDistrictData
+            initDistrictData();
+        });
+        window.addEventListener('resize', checkResponsive);
+
+    </script>
+</body>
+</html>
