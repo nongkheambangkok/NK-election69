@@ -319,6 +319,7 @@
                     </div>
 
                     <div class="scroll-btn-container">
+                        <button class="filter-btn" onclick="filterMap('all', this)">ทั้งหมด</button>
                         <button class="filter-btn" onclick="filterMap('แขวงหนองแขม', this)">หนองแขม</button>
                         <button class="filter-btn" onclick="filterMap('แขวงหนองค้างพลู', this)">หนองค้างพลู</button>
                     </div>
@@ -792,14 +793,27 @@
             
             // Set active button style
             btn.classList.add('active');
-            const activeColor = subDistrictColors[type] || '#00744b';
+            
+            let activeColor;
+            if (type === 'all') {
+                activeColor = '#00744b'; // Use Theme Color
+            } else {
+                activeColor = subDistrictColors[type] || '#00744b';
+            }
+            
             btn.style.backgroundColor = activeColor;
             btn.style.borderColor = activeColor;
             // Adjust text color for yellow
             btn.style.color = (activeColor === "#FFC107") ? "#202020" : "white";
 
-            // Strict Filter
-            const filteredUnits = units.filter(u => u.details_range.startsWith(type + " "));
+            // Filter Logic
+            let filteredUnits;
+            if (type === 'all') {
+                filteredUnits = units;
+            } else {
+                filteredUnits = units.filter(u => u.details_range.startsWith(type + " "));
+            }
+            
             renderMarkers(filteredUnits);
 
             // ZOOM TO FIT BOUNDS
