@@ -357,7 +357,14 @@
     <script>
         let map;
         let markerGroup;
+        // ปรับปรุงฟังก์ชันนี้เพื่อให้คืนค่าสีที่ถูกต้องตามแขวง
         function getSubDistrictColor(details) {
+            if (details.startsWith("แขวงหนองแขม")) {
+                return "#28a745"; // สีเขียวเข้ม
+            } else if (details.startsWith("แขวงหนองค้างพลู")) {
+                return "#E91E63"; // สีชมพูเข้ม
+            }
+            
             // Check exactly which subdistrict it belongs to by matching the start string
             for (const [name, color] of Object.entries(subDistrictColors)) {
                 if (details.startsWith(name + " ")) {
@@ -475,7 +482,7 @@
 
             // --- วาดขอบเขตแขวง (Polygon) แบบละเอียด (Approximate Detailed Boundary) ---
             
-            // 1. แขวงหนองแขม (สีชมพู) - โซนใต้/ตะวันตก
+            // 1. แขวงหนองแขม (สีเขียว) - โซนใต้/ตะวันตก
             const nongKhaemPolygon = [
                 [13.690760365580438, 100.33208080119488], // NW Corner (Connecting point)
                 [13.683708247569715, 100.33383199830189], // Mid-boundary step
@@ -548,7 +555,7 @@
                 [13.690786843093155, 100.33206529920948]// SE Corner
             ];
             
-            // 2. แขวงหนองค้างพลู (สีเหลือง) - โซนเหนือ/ตะวันออก
+            // 2. แขวงหนองค้างพลู (สีชมพู) - โซนเหนือ/ตะวันออก
             const nongKhangPhluPolygon = [
                 [13.736035, 100.337439], // NW Corner
                 [13.732767, 100.337498], // North side
@@ -622,15 +629,15 @@
 
             // สร้าง Polygon Layer
             L.polygon(nongKhaemPolygon, {
-                color: '#E91E63',       // สีชมพู (ขอบ)
-                fillColor: '#E91E63',   // สีชมพู (พื้นหลัง)
+                color: '#28a745',       // สีเขียว (ขอบ)
+                fillColor: '#28a745',   // สีเขียว (พื้นหลัง)
                 fillOpacity: 0.15,      // ความโปร่งใส
                 weight: 2               // ความหนาเส้นขอบ
             }).addTo(map).bindPopup("แขวงหนองแขม (เขตเลือกตั้งที่ 28)");
 
             L.polygon(nongKhangPhluPolygon, {
-                color: '#FFC107',       // สีเหลือง (ขอบ)
-                fillColor: '#FFC107',   // สีเหลือง (พื้นหลัง)
+                color: '#E91E63',       // สีชมพู (ขอบ)
+                fillColor: '#E91E63',   // สีชมพู (พื้นหลัง)
                 fillOpacity: 0.15,      // ความโปร่งใส
                 weight: 2               // ความหนาเส้นขอบ
             }).addTo(map).bindPopup("แขวงหนองค้างพลู (เขตเลือกตั้งที่ 29)");
@@ -797,6 +804,10 @@
             let activeColor;
             if (type === 'all') {
                 activeColor = '#00744b'; // Use Theme Color
+            } else if (type === 'แขวงหนองแขม') {
+                activeColor = '#28a745';
+            } else if (type === 'แขวงหนองค้างพลู') {
+                activeColor = '#E91E63';
             } else {
                 activeColor = subDistrictColors[type] || '#00744b';
             }
