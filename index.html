@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>ระบบตรวจสอบหน่วยเลือกตั้ง</title>
+    <title>กรุงเทพมหานคร เขตหนองแขม</title>
     
     <!-- Libraries -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
@@ -471,6 +471,42 @@
                 maxZoom: 19 
             }).addTo(map);
 
+            // --- วาดขอบเขตแขวง (Polygon) แบบ Manual Coordinate ---
+            
+            // 1. แขวงหนองแขม (สีชมพู) - โซนใต้/ตะวันตก
+            // ครอบคลุมพิกัด Lat 13.65 - 13.69
+            const nongKhaemPolygon = [
+                [13.702, 100.332], 
+                [13.698, 100.380], // Border with Nong Khang Phlu (Approx)
+                [13.650, 100.380], 
+                [13.650, 100.332]
+            ];
+            
+            // 2. แขวงหนองค้างพลู (สีเหลือง) - โซนเหนือ/ตะวันออก
+            // ครอบคลุมพิกัด Lat 13.69 - 13.74
+            const nongKhangPhluPolygon = [
+                [13.740, 100.332], 
+                [13.740, 100.380], 
+                [13.698, 100.380], // Border with Nong Khaem (Approx)
+                [13.702, 100.332]
+            ];
+
+            // สร้าง Polygon Layer
+            L.polygon(nongKhaemPolygon, {
+                color: '#E91E63',       // สีชมพู (ขอบ)
+                fillColor: '#E91E63',   // สีชมพู (พื้นหลัง)
+                fillOpacity: 0.15,      // ความโปร่งใส
+                weight: 2               // ความหนาเส้นขอบ
+            }).addTo(map).bindPopup("แขวงหนองแขม");
+
+            L.polygon(nongKhangPhluPolygon, {
+                color: '#FFC107',       // สีเหลือง (ขอบ)
+                fillColor: '#FFC107',   // สีเหลือง (พื้นหลัง)
+                fillOpacity: 0.15,      // ความโปร่งใส
+                weight: 2               // ความหนาเส้นขอบ
+            }).addTo(map).bindPopup("แขวงหนองค้างพลู");
+            // ------------------------------------------
+
             if(strictBounds) {
                 map.fitBounds(strictBounds);
                 setTimeout(() => {
@@ -487,8 +523,9 @@
             data.forEach(unit => {
                 let markerBg = getSubDistrictColor(unit.details_range);
                 let textColor = "white";
-                // Adjust text color for yellow background
-                if(markerBg === "#ffc107") textColor = "#202020";
+                
+                // Adjust text color for yellow background to be readable
+                if(markerBg === "#FFC107") textColor = "#202020";
 
                 let label = unit.details_range.includes("หน่วยที่") ? unit.details_range.split("หน่วยที่")[1].trim() : "-";
 
@@ -600,7 +637,7 @@
                         const activeColor = subDistrictColors[district];
                         b.style.backgroundColor = activeColor;
                         b.style.borderColor = activeColor;
-                        b.style.color = (activeColor === "#ffc107") ? "#202020" : "white";
+                        b.style.color = (activeColor === "#FFC107") ? "#202020" : "white";
                     } else {
                         b.classList.remove('active');
                         b.style.backgroundColor = 'white';
@@ -631,7 +668,7 @@
             btn.style.backgroundColor = activeColor;
             btn.style.borderColor = activeColor;
             // Adjust text color for yellow
-            btn.style.color = (activeColor === "#ffc107") ? "#202020" : "white";
+            btn.style.color = (activeColor === "#FFC107") ? "#202020" : "white";
 
             // Strict Filter
             const filteredUnits = units.filter(u => u.details_range.startsWith(type + " "));
@@ -661,7 +698,18 @@
             document.getElementById('p-note').innerText = data.note || "-";
             
             const gallery = document.getElementById('p-gallery');
-            if(data.images && data.images.length > 0) {
+            // MODIFIED: Generate image tags dynamically for 1-5.jpg from the folder
+            if (data.image_folder) {
+                let html = '';
+                // Try loading images 1.jpg to 5.jpg
+                for (let i = 1; i <= 5; i++) {
+                    const imgPath = `${data.image_folder}/${i}.jpg`;
+                    // Use onerror to hide images that don't exist
+                    html += `<img src="${imgPath}" onerror="this.style.display='none'" onclick="openLightbox('${imgPath}')">`;
+                }
+                gallery.innerHTML = html;
+            } else if(data.images && data.images.length > 0) {
+                 // Fallback to old array if needed
                  gallery.innerHTML = data.images.map(img => `<img src="${img}" onclick="openLightbox('${img}')">`).join('');
             } else {
                  gallery.innerHTML = "";
