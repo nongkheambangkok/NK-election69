@@ -471,24 +471,32 @@
                 maxZoom: 19 
             }).addTo(map);
 
-            // --- วาดขอบเขตแขวง (Polygon) แบบ Manual Coordinate ---
+            // --- วาดขอบเขตแขวง (Polygon) แบบละเอียด (Approximate Detailed Boundary) ---
             
             // 1. แขวงหนองแขม (สีชมพู) - โซนใต้/ตะวันตก
-            // ครอบคลุมพิกัด Lat 13.65 - 13.69
             const nongKhaemPolygon = [
-                [13.702, 100.332], 
-                [13.698, 100.380], // Border with Nong Khang Phlu (Approx)
-                [13.650, 100.380], 
-                [13.650, 100.332]
+                [13.7050, 100.3320], // NW Corner (Connecting point)
+                [13.7020, 100.3450], // Mid-boundary step
+                [13.7000, 100.3600], // Mid-boundary step
+                [13.7030, 100.3750], // NE Corner (Connecting point)
+                [13.6900, 100.3820], // East side
+                [13.6650, 100.3750], // SE Corner
+                [13.6550, 100.3550], // South side
+                [13.6550, 100.3350], // SW Corner
+                [13.6800, 100.3300]  // West side
             ];
             
             // 2. แขวงหนองค้างพลู (สีเหลือง) - โซนเหนือ/ตะวันออก
-            // ครอบคลุมพิกัด Lat 13.69 - 13.74
             const nongKhangPhluPolygon = [
-                [13.740, 100.332], 
-                [13.740, 100.380], 
-                [13.698, 100.380], // Border with Nong Khaem (Approx)
-                [13.702, 100.332]
+                [13.7420, 100.3350], // NW Corner
+                [13.7400, 100.3600], // North side
+                [13.7350, 100.3780], // NE Corner
+                [13.7150, 100.3800], // East side
+                [13.7030, 100.3750], // SE Corner (Connecting point)
+                [13.7000, 100.3600], // Mid-boundary step
+                [13.7020, 100.3450], // Mid-boundary step
+                [13.7050, 100.3320], // SW Corner (Connecting point)
+                [13.7250, 100.3300]  // West side
             ];
 
             // สร้าง Polygon Layer
@@ -497,14 +505,14 @@
                 fillColor: '#E91E63',   // สีชมพู (พื้นหลัง)
                 fillOpacity: 0.15,      // ความโปร่งใส
                 weight: 2               // ความหนาเส้นขอบ
-            }).addTo(map).bindPopup("แขวงหนองแขม");
+            }).addTo(map).bindPopup("แขวงหนองแขม (เขตเลือกตั้งที่ 28)");
 
             L.polygon(nongKhangPhluPolygon, {
                 color: '#FFC107',       // สีเหลือง (ขอบ)
                 fillColor: '#FFC107',   // สีเหลือง (พื้นหลัง)
                 fillOpacity: 0.15,      // ความโปร่งใส
                 weight: 2               // ความหนาเส้นขอบ
-            }).addTo(map).bindPopup("แขวงหนองค้างพลู");
+            }).addTo(map).bindPopup("แขวงหนองค้างพลู (เขตเลือกตั้งที่ 29)");
             // ------------------------------------------
 
             if(strictBounds) {
