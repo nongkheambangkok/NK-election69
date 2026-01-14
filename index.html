@@ -605,8 +605,7 @@
                 [13.693503342492304, 100.34748334263737],
                 [13.694117851297923, 100.34738437715293], // NW Corner
                 [13.695526635969687, 100.34689387012027], // North side
-                [13.698849996621762, 100.3463990604203],
-                [13.699445, 100.346175],
+                [13.698849996621762, 100.3463990604203], // NE Corner
                 [13.700133344717784, 100.34769847369822], // East side
                 [13.700087361680337, 100.35194523205426], // SE Corner (Connecting point)
                 [13.700233671303131, 100.35259063601517], // Mid-boundary step
@@ -852,11 +851,13 @@
             document.getElementById('p-note').innerText = data.note || "-";
             
             const gallery = document.getElementById('p-gallery');
-            // MODIFIED: Generate image tags dynamically for 1-5.jpg from the folder
+            // MODIFIED: Generate image tags dynamically for 1-X.jpg from the folder
             if (data.image_folder) {
                 let html = '';
-                // Try loading images 1.jpg to 5.jpg
-                for (let i = 1; i <= 5; i++) {
+                // รองรับรูปภาพสูงสุด 30 รูป (สามารถเพิ่มตัวเลขนี้ได้ตามต้องการ)
+                // ระบบจะซ่อนรูปที่ไม่มีไฟล์ให้เอง (ผ่าน onerror)
+                const MAX_IMAGES = 30; 
+                for (let i = 1; i <= MAX_IMAGES; i++) {
                     const imgPath = `${data.image_folder}/${i}.jpg`;
                     // Use onerror to hide images that don't exist
                     html += `<img src="${imgPath}" onerror="this.style.display='none'" onclick="openLightbox('${imgPath}')">`;
