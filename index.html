@@ -30,24 +30,59 @@
         /* UI Components */
         .glass-panel, .info-card { background: #fff; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
         
-        /* Lightbox */
+        /* Lightbox Styles Updated */
         .lightbox-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2000; background-color: rgba(0, 0, 0, 0.9);
+            z-index: 2000; background-color: rgba(0, 0, 0, 0.95);
             display: flex; justify-content: center; align-items: center;
             opacity: 0; visibility: hidden; transition: opacity 0.2s ease;
+            touch-action: none; /* Prevent scrolling while swiping */
         }
         .lightbox-overlay.active { opacity: 1; visibility: visible; }
-        .lightbox-img { max-width: 95vw; max-height: 90vh; object-fit: contain; }
+        
+        .lightbox-img { 
+            max-width: 100%; max-height: 100%; 
+            object-fit: contain; 
+            transition: transform 0.2s;
+            user-select: none;
+        }
+        
         .lightbox-close-btn {
             position: absolute; top: 2rem; right: 2rem; width: 4rem; height: 4rem;
-            background: rgba(255, 255, 255, 0.3); border-radius: 50%; cursor: pointer; z-index: 2001;
+            background: rgba(255, 255, 255, 0.2); border-radius: 50%; cursor: pointer; z-index: 2002;
+            display: flex; align-items: center; justify-content: center;
+            transition: background 0.3s;
         }
+        .lightbox-close-btn:hover { background: rgba(255, 255, 255, 0.4); }
         .lightbox-close-btn::before, .lightbox-close-btn::after {
-            content: ''; position: absolute; top: 50%; left: 50%; width: 2rem; height: 2px; background: white; transform-origin: center;
+            content: ''; position: absolute; width: 2rem; height: 2px; background: white; 
         }
-        .lightbox-close-btn::before { transform: translate(-50%, -50%) rotate(45deg); }
-        .lightbox-close-btn::after { transform: translate(-50%, -50%) rotate(-45deg); }
+        .lightbox-close-btn::before { transform: rotate(45deg); }
+        .lightbox-close-btn::after { transform: rotate(-45deg); }
+
+        /* Lightbox Navigation Buttons */
+        .lightbox-nav-btn {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            width: 5rem; height: 5rem;
+            background: rgba(255, 255, 255, 0.15);
+            color: white; font-size: 3rem;
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; z-index: 2002;
+            transition: all 0.3s;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .lightbox-nav-btn:hover { background: rgba(255, 255, 255, 0.4); transform: translateY(-50%) scale(1.1); }
+        .lightbox-nav-btn:active { transform: translateY(-50%) scale(0.95); }
+        
+        .lightbox-prev { left: 1.5rem; }
+        .lightbox-next { right: 1.5rem; }
+        
+        /* Hide buttons if strictly on mobile to encourage swipe, or keep them small */
+        @media (max-width: 768px) {
+            .lightbox-nav-btn { width: 4rem; height: 4rem; font-size: 2rem; background: rgba(0,0,0,0.3); }
+        }
 
         /* Layout Structure */
         .game-frame {
@@ -347,9 +382,14 @@
             </div>
         </div>
 
+        <!-- UPDATED LIGHTBOX HTML with Navigation -->
         <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
             <div class="lightbox-close-btn" onclick="closeLightbox()"></div>
+            
+            <!-- Navigation Buttons -->
+            <div id="lightbox-prev" class="lightbox-nav-btn lightbox-prev" onclick="navigateLightbox(-1, event)">❮</div>
             <img id="lightbox-img" class="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
+            <div id="lightbox-next" class="lightbox-nav-btn lightbox-next" onclick="navigateLightbox(1, event)">❯</div>
         </div>
     </div>
 
@@ -357,7 +397,12 @@
     <script>
         let map;
         let markerGroup;
-        // ปรับปรุงฟังก์ชันนี้เพื่อให้คืนค่าสีที่ถูกต้องตามแขวง
+        // Variables for lightbox navigation
+        let currentGalleryImages = [];
+        let currentImageIndex = 0;
+        let touchStartX = 0;
+        let touchEndX = 0;
+
         function getSubDistrictColor(details) {
             if (details.startsWith("แขวงหนองแขม")) {
                 return "#28a745"; // สีเขียวเข้ม
@@ -365,7 +410,6 @@
                 return "#E91E63"; // สีชมพูเข้ม
             }
             
-            // Check exactly which subdistrict it belongs to by matching the start string
             for (const [name, color] of Object.entries(subDistrictColors)) {
                 if (details.startsWith(name + " ")) {
                     return color;
@@ -836,12 +880,89 @@
             }
         }
 
+        // --- NEW: Lightbox Navigation Logic ---
         function openLightbox(src) {
-            document.getElementById('lightbox-img').src = src;
+            // Re-populate the list based on visible images in the gallery container
+            // This is safer than pre-calculating because onerror hides broken ones asynchronously
+            const galleryContainer = document.getElementById('p-gallery');
+            // Get all img tags that are not hidden (display: none)
+            const visibleImages = Array.from(galleryContainer.querySelectorAll('img')).filter(img => img.style.display !== 'none');
+            
+            if (visibleImages.length === 0) {
+                // Fallback just in case direct open
+                currentGalleryImages = [src];
+                currentImageIndex = 0;
+            } else {
+                currentGalleryImages = visibleImages.map(img => img.src);
+                currentImageIndex = currentGalleryImages.indexOf(src);
+                if (currentImageIndex === -1) {
+                    currentImageIndex = 0; // Should not happen ideally
+                }
+            }
+            
+            updateLightboxContent();
             document.getElementById('lightbox').classList.add('active');
+            
+            // Add keyboard event listener
+            document.addEventListener('keydown', handleLightboxKeydown);
         }
+
         function closeLightbox() {
             document.getElementById('lightbox').classList.remove('active');
+            document.removeEventListener('keydown', handleLightboxKeydown);
+        }
+        
+        function updateLightboxContent() {
+            const imgEl = document.getElementById('lightbox-img');
+            const prevBtn = document.getElementById('lightbox-prev');
+            const nextBtn = document.getElementById('lightbox-next');
+            
+            imgEl.src = currentGalleryImages[currentImageIndex];
+            
+            // Show/Hide buttons based on index and length
+            if (currentGalleryImages.length <= 1) {
+                prevBtn.style.display = 'none';
+                nextBtn.style.display = 'none';
+            } else {
+                prevBtn.style.display = 'flex';
+                nextBtn.style.display = 'flex';
+                // Optional: Hide prev on first, next on last?
+                // For better UX, let's allow loop or stop. Let's stop at ends visually or keep cycling?
+                // Let's keep cycling for ease of use.
+            }
+        }
+        
+        function navigateLightbox(direction, event) {
+            if (event) event.stopPropagation();
+            
+            if (currentGalleryImages.length <= 1) return;
+            
+            currentImageIndex = (currentImageIndex + direction + currentGalleryImages.length) % currentGalleryImages.length;
+            updateLightboxContent();
+        }
+        
+        function handleLightboxKeydown(e) {
+            if (e.key === 'ArrowRight') navigateLightbox(1);
+            if (e.key === 'ArrowLeft') navigateLightbox(-1);
+            if (e.key === 'Escape') closeLightbox();
+        }
+        
+        // Touch Swipe Handling
+        const lightboxEl = document.getElementById('lightbox');
+        lightboxEl.addEventListener('touchstart', (e) => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+        
+        lightboxEl.addEventListener('touchend', (e) => {
+            touchEndX = e.changedTouches[0].screenX;
+            handleSwipe();
+        }, { passive: true });
+        
+        function handleSwipe() {
+            // Swipe Left = Next Image
+            if (touchEndX < touchStartX - 50) navigateLightbox(1);
+            // Swipe Right = Prev Image
+            if (touchEndX > touchStartX + 50) navigateLightbox(-1);
         }
 
         function openPopup(data) {
@@ -854,8 +975,7 @@
             // MODIFIED: Generate image tags dynamically for 1-X.jpg from the folder
             if (data.image_folder) {
                 let html = '';
-                // รองรับรูปภาพสูงสุด 30 รูป (สามารถเพิ่มตัวเลขนี้ได้ตามต้องการ)
-                // ระบบจะซ่อนรูปที่ไม่มีไฟล์ให้เอง (ผ่าน onerror)
+                // Try loading images 1.jpg to 30.jpg (Assuming max 30)
                 const MAX_IMAGES = 30; 
                 for (let i = 1; i <= MAX_IMAGES; i++) {
                     const imgPath = `${data.image_folder}/${i}.jpg`;
