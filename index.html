@@ -954,7 +954,22 @@
             } else {
                 currentGalleryImages = visibleImages.map(img => img.src);
                 currentImageIndex = currentGalleryImages.indexOf(src);
-                if (currentImageIndex === -1) currentImageIndex = 0;
+                // Fix for bug where clicking an image might open the first one due to encoding differences
+                // If indexOf returns -1, try to find a match by comparing the end of the URL (filename)
+                if (currentImageIndex === -1) {
+                    // Extract filename from src (e.g. "path/to/1.jpg" -> "1.jpg")
+                    // Handle potential URL encoding differences
+                    const targetFilename = decodeURIComponent(src.substring(src.lastIndexOf('/') + 1));
+                    
+                    // Find index by comparing filenames
+                    currentImageIndex = currentGalleryImages.findIndex(imgSrc => {
+                        const currentFilename = decodeURIComponent(imgSrc.substring(imgSrc.lastIndexOf('/') + 1));
+                        return currentFilename === targetFilename;
+                    });
+                    
+                    // Fallback to 0 if still not found
+                    if (currentImageIndex === -1) currentImageIndex = 0;
+                }
             }
             
             // Reset Zoom
@@ -1220,12 +1235,12 @@
                 for (let i = 1; i <= MAX_IMAGES; i++) {
                     const imgPath = `${data.image_folder}/${i}.jpg`;
                     // Use onerror to hide images that don't exist
-                    html += `<img src="${imgPath}" onerror="this.style.display='none'" onclick="openLightbox('${imgPath}')">`;
+                    html += `<img src="${imgPath}" onerror="this.style.display='none'" onclick="openLightbox(this.src)">`;
                 }
                 gallery.innerHTML = html;
             } else if(data.images && data.images.length > 0) {
                  // Fallback to old array if needed
-                 gallery.innerHTML = data.images.map(img => `<img src="${img}" onclick="openLightbox('${img}')">`).join('');
+                 gallery.innerHTML = data.images.map(img => `<img src="${img}" onclick="openLightbox(this.src)">`).join('');
             } else {
                  gallery.innerHTML = "";
             }
