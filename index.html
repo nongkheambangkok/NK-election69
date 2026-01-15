@@ -30,52 +30,35 @@
         /* UI Components */
         .glass-panel, .info-card { background: #fff; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
         
-        /* Lightbox Styles Updated */
+        /* Lightbox Styles Updated for Smooth Swipe */
         .lightbox-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 2000; background-color: rgba(0, 0, 0, 0.95);
             display: flex; justify-content: center; align-items: center;
             opacity: 0; visibility: hidden; transition: opacity 0.3s ease;
-            touch-action: none; /* Prevent scrolling while swiping */
+            touch-action: none; /* Critical for drag handling */
         }
         .lightbox-overlay.active { opacity: 1; visibility: visible; }
         
-        /* Container for holding sliding images */
         .lightbox-content-container {
             position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            width: 100%; height: 100%;
             overflow: hidden;
         }
 
         .lightbox-img { 
             position: absolute;
-            max-width: 100%; max-height: 100%; 
+            top: 0; left: 0;
+            width: 100%; height: 100%; 
             object-fit: contain; 
             user-select: none;
-            /* Smooth transitions for iOS-like feel */
-            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.4s ease;
-            opacity: 0;
-            transform: scale(0.95);
-            pointer-events: none;
+            will-change: transform; /* Hardware acceleration */
         }
-
-        /* Active State */
-        .lightbox-img.active {
-            opacity: 1;
-            transform: translateX(0) scale(1);
-            z-index: 10;
-            pointer-events: auto;
+        
+        /* Class to enable transition when snapping (released finger) */
+        .lightbox-img.animating {
+            transition: transform 0.3s cubic-bezier(0.2, 1, 0.3, 1);
         }
-
-        /* Slide Animations */
-        .lightbox-img.enter-right { transform: translateX(100%); opacity: 1; z-index: 11; }
-        .lightbox-img.enter-left  { transform: translateX(-100%); opacity: 1; z-index: 11; }
-        .lightbox-img.exit-left   { transform: translateX(-100%) scale(0.9); opacity: 0.5; z-index: 9; }
-        .lightbox-img.exit-right  { transform: translateX(100%) scale(0.9); opacity: 0.5; z-index: 9; }
         
         .lightbox-close-btn {
             position: absolute; top: 2rem; right: 2rem; width: 4rem; height: 4rem;
@@ -109,9 +92,9 @@
         .lightbox-prev { left: 1.5rem; }
         .lightbox-next { right: 1.5rem; }
         
-        /* Hide buttons if strictly on mobile to encourage swipe, or keep them small */
         @media (max-width: 768px) {
-            .lightbox-nav-btn { width: 4rem; height: 4rem; font-size: 2rem; background: rgba(0,0,0,0.3); }
+            /* Hide arrows on mobile to encourage swipe interaction, or keep them subtle */
+            .lightbox-nav-btn { display: none !important; }
         }
 
         /* Layout Structure */
@@ -412,19 +395,19 @@
             </div>
         </div>
 
-        <!-- UPDATED LIGHTBOX HTML with Navigation -->
+        <!-- UPDATED LIGHTBOX HTML with Drag/Swipe support -->
         <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
             <div class="lightbox-close-btn" onclick="closeLightbox()"></div>
             
             <!-- Navigation Buttons -->
-            <div id="lightbox-prev" class="lightbox-nav-btn lightbox-prev" onclick="navigateLightbox(-1, event)">❮</div>
+            <div id="lightbox-prev" class="lightbox-nav-btn lightbox-prev" onclick="manualNavigate(-1, event)">❮</div>
             
             <!-- Container for sliding images -->
             <div id="lightbox-img-container" class="lightbox-content-container" onclick="event.stopPropagation()">
-                <!-- Images will be injected here -->
+                <!-- Images injected via JS -->
             </div>
 
-            <div id="lightbox-next" class="lightbox-nav-btn lightbox-next" onclick="navigateLightbox(1, event)">❯</div>
+            <div id="lightbox-next" class="lightbox-nav-btn lightbox-next" onclick="manualNavigate(1, event)">❯</div>
         </div>
     </div>
 
@@ -432,11 +415,17 @@
     <script>
         let map;
         let markerGroup;
-        // Variables for lightbox navigation
-        let currentGalleryImages = [];
-        let currentImageIndex = 0;
+        
+        // --- Lightbox / Carousel State ---
+        let galleryImages = [];
+        let currentIdx = 0;
         let touchStartX = 0;
-        let touchEndX = 0;
+        let currentTranslate = 0;
+        let isDragging = false;
+        
+        // DOM Elements for Lightbox
+        const lightboxContainer = document.getElementById('lightbox-img-container');
+        const lightbox = document.getElementById('lightbox');
 
         function getSubDistrictColor(details) {
             if (details.startsWith("แขวงหนองแขม")) {
@@ -915,40 +904,23 @@
             }
         }
 
-        // --- NEW: Lightbox Navigation Logic ---
+        // --- CAROUSEL LOGIC REFACTOR (Stick-to-finger) ---
         function openLightbox(src) {
-            // Re-populate the list based on visible images in the gallery container
-            // This is safer than pre-calculating because onerror hides broken ones asynchronously
             const galleryContainer = document.getElementById('p-gallery');
-            // Get all img tags that are not hidden (display: none)
             const visibleImages = Array.from(galleryContainer.querySelectorAll('img')).filter(img => img.style.display !== 'none');
             
             if (visibleImages.length === 0) {
-                // Fallback just in case direct open
                 currentGalleryImages = [src];
                 currentImageIndex = 0;
             } else {
                 currentGalleryImages = visibleImages.map(img => img.src);
                 currentImageIndex = currentGalleryImages.indexOf(src);
-                if (currentImageIndex === -1) {
-                    currentImageIndex = 0; // Should not happen ideally
-                }
+                if (currentImageIndex === -1) currentImageIndex = 0;
             }
             
-            // Clear previous lightbox content properly
-            const container = document.getElementById('lightbox-img-container');
-            container.innerHTML = ''; 
-            
-            // Setup initial image
-            const img = document.createElement('img');
-            img.src = currentGalleryImages[currentImageIndex];
-            img.className = 'lightbox-img active';
-            container.appendChild(img);
-            
-            updateNavigationButtons();
+            updateCarousel(0, false); // Initial render
             document.getElementById('lightbox').classList.add('active');
             
-            // Add keyboard event listener
             document.addEventListener('keydown', handleLightboxKeydown);
         }
 
@@ -956,12 +928,62 @@
             document.getElementById('lightbox').classList.remove('active');
             document.removeEventListener('keydown', handleLightboxKeydown);
         }
+
+        // Helper to get image element by logical position (-1, 0, 1)
+        // We will create/reuse 3 img elements in the DOM
+        function updateCarousel(offsetPx = 0, animate = false) {
+            const container = document.getElementById('lightbox-img-container');
+            // Ensure we have 3 img elements: prev, curr, next
+            // If not, clear and create them
+            if (container.children.length !== 3) {
+                container.innerHTML = '';
+                for(let i=0; i<3; i++) {
+                    const img = document.createElement('img');
+                    img.className = 'lightbox-img';
+                    container.appendChild(img);
+                }
+            }
+            
+            const imgs = container.querySelectorAll('.lightbox-img');
+            const width = container.offsetWidth;
+            
+            // Indices
+            const prevIdx = (currentImageIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
+            const nextIdx = (currentImageIndex + 1) % currentGalleryImages.length;
+            
+            const mapImg = [
+                { el: imgs[0], idx: prevIdx, baseOffset: -width },
+                { el: imgs[1], idx: currentImageIndex, baseOffset: 0 },
+                { el: imgs[2], idx: nextIdx, baseOffset: width }
+            ];
+            
+            mapImg.forEach(obj => {
+                obj.el.src = currentGalleryImages[obj.idx];
+                
+                // Toggle animation class
+                if (animate) {
+                    obj.el.classList.add('animating');
+                } else {
+                    obj.el.classList.remove('animating');
+                }
+                
+                // Apply transform
+                // If only 1 image, handle gracefully
+                if (currentGalleryImages.length <= 1 && obj.baseOffset !== 0) {
+                    obj.el.style.display = 'none';
+                } else {
+                    obj.el.style.display = 'block';
+                    const finalTranslate = obj.baseOffset + offsetPx;
+                    obj.el.style.transform = `translateX(${finalTranslate}px)`;
+                }
+            });
+            
+            updateNavigationButtons();
+        }
         
         function updateNavigationButtons() {
             const prevBtn = document.getElementById('lightbox-prev');
             const nextBtn = document.getElementById('lightbox-next');
-            
-            // Show/Hide buttons based on index and length
             if (currentGalleryImages.length <= 1) {
                 prevBtn.style.display = 'none';
                 nextBtn.style.display = 'none';
@@ -971,78 +993,78 @@
             }
         }
         
-        function navigateLightbox(direction, event) {
+        // Manual Navigation (Arrows)
+        function manualNavigate(direction, event) {
             if (event) event.stopPropagation();
-            
             if (currentGalleryImages.length <= 1) return;
             
-            const oldIndex = currentImageIndex;
-            currentImageIndex = (currentImageIndex + direction + currentGalleryImages.length) % currentGalleryImages.length;
-            
+            // Animate transition roughly
             const container = document.getElementById('lightbox-img-container');
-            const oldImg = container.querySelector('.lightbox-img.active');
+            const width = container.offsetWidth;
             
-            // Create New Image
-            const newImg = document.createElement('img');
-            newImg.src = currentGalleryImages[currentImageIndex];
-            newImg.className = 'lightbox-img';
+            // Slide to the direction
+            updateCarousel(direction * -width, true);
             
-            // Set Initial State for New Image
-            if (direction === 1) {
-                newImg.classList.add('enter-right'); // Next image enters from right
-            } else {
-                newImg.classList.add('enter-left'); // Prev image enters from left
-            }
-            
-            container.appendChild(newImg);
-            
-            // Force Reflow to ensure initial state is applied before transition
-            void newImg.offsetWidth; 
-            
-            // Animate
-            if (oldImg) {
-                oldImg.classList.remove('active');
-                if (direction === 1) {
-                    oldImg.classList.add('exit-left'); // Old image exits to left
-                } else {
-                    oldImg.classList.add('exit-right'); // Old image exits to right
-                }
-                
-                // Remove old image after transition
-                setTimeout(() => {
-                    if(oldImg.parentNode === container) {
-                        container.removeChild(oldImg);
-                    }
-                }, 400); // Match CSS transition duration
-            }
-            
-            newImg.classList.remove('enter-right', 'enter-left');
-            newImg.classList.add('active');
+            // After animation, reset state
+            setTimeout(() => {
+                currentImageIndex = (currentImageIndex + direction + currentGalleryImages.length) % currentGalleryImages.length;
+                updateCarousel(0, false);
+            }, 300); // match css transition
         }
         
         function handleLightboxKeydown(e) {
-            if (e.key === 'ArrowRight') navigateLightbox(1);
-            if (e.key === 'ArrowLeft') navigateLightbox(-1);
+            if (e.key === 'ArrowRight') manualNavigate(1);
+            if (e.key === 'ArrowLeft') manualNavigate(-1);
             if (e.key === 'Escape') closeLightbox();
         }
         
-        // Touch Swipe Handling
-        const lightboxEl = document.getElementById('lightbox');
-        lightboxEl.addEventListener('touchstart', (e) => {
-            touchStartX = e.changedTouches[0].screenX;
+        // Touch / Drag Logic
+        const lightboxContainerEl = document.getElementById('lightbox-img-container');
+        
+        lightboxContainerEl.addEventListener('touchstart', (e) => {
+            if (currentGalleryImages.length <= 1) return;
+            isDragging = true;
+            touchStartX = e.touches[0].clientX;
+            // Remove animation class for instant drag
+            const imgs = lightboxContainerEl.querySelectorAll('.lightbox-img');
+            imgs.forEach(img => img.classList.remove('animating'));
         }, { passive: true });
         
-        lightboxEl.addEventListener('touchend', (e) => {
-            touchEndX = e.changedTouches[0].screenX;
-            handleSwipe();
+        lightboxContainerEl.addEventListener('touchmove', (e) => {
+            if (!isDragging) return;
+            const currentX = e.touches[0].clientX;
+            const deltaX = currentX - touchStartX;
+            // Update positions instantly
+            updateCarousel(deltaX, false);
         }, { passive: true });
         
-        function handleSwipe() {
-            // Swipe Left = Next Image
-            if (touchEndX < touchStartX - 50) navigateLightbox(1);
-            // Swipe Right = Prev Image
-            if (touchEndX > touchStartX + 50) navigateLightbox(-1);
-        }
+        lightboxContainerEl.addEventListener('touchend', (e) => {
+            if (!isDragging) return;
+            isDragging = false;
+            const currentX = e.changedTouches[0].clientX;
+            const deltaX = currentX - touchStartX;
+            const width = lightboxContainerEl.offsetWidth;
+            const threshold = width * 0.2; // 20% swipe to change
+            
+            if (deltaX < -threshold) {
+                // Next
+                updateCarousel(-width, true);
+                setTimeout(() => {
+                    currentImageIndex = (currentImageIndex + 1) % currentGalleryImages.length;
+                    updateCarousel(0, false);
+                }, 300);
+            } else if (deltaX > threshold) {
+                // Prev
+                updateCarousel(width, true);
+                setTimeout(() => {
+                    currentImageIndex = (currentImageIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
+                    updateCarousel(0, false);
+                }, 300);
+            } else {
+                // Snap back
+                updateCarousel(0, true);
+            }
+        });
 
         function openPopup(data) {
             document.getElementById('p-name').innerText = data.name;
