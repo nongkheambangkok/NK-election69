@@ -30,7 +30,7 @@
         /* UI Components */
         .glass-panel, .info-card { background: #fff; box-shadow: 0 -4px 20px rgba(0,0,0,0.1); }
         
-        /* Lightbox Styles Updated for Smooth Swipe */
+        /* Lightbox Styles Updated for Smooth Swipe & Zoom */
         .lightbox-overlay {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             z-index: 2000; background-color: rgba(0, 0, 0, 0.95);
@@ -52,7 +52,9 @@
             width: 100%; height: 100%; 
             object-fit: contain; 
             user-select: none;
-            will-change: transform; /* Hardware acceleration */
+            /* Hardware acceleration */
+            will-change: transform; 
+            transform-origin: center center;
         }
         
         /* Class to enable transition when snapping (released finger) */
@@ -91,10 +93,29 @@
         
         .lightbox-prev { left: 1.5rem; }
         .lightbox-next { right: 1.5rem; }
+
+        /* Zoom Controls */
+        .lightbox-zoom-controls {
+            position: absolute; bottom: 3rem; left: 50%; transform: translateX(-50%);
+            display: flex; gap: 1.5rem; z-index: 2002;
+        }
+        .zoom-btn {
+            width: 4.5rem; height: 4.5rem;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%; color: white;
+            font-size: 2.4rem; border: 1px solid rgba(255,255,255,0.3);
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer; transition: all 0.2s;
+            backdrop-filter: blur(4px);
+        }
+        .zoom-btn:hover { background: rgba(255, 255, 255, 0.4); transform: scale(1.1); }
+        .zoom-btn:active { transform: scale(0.95); }
         
         @media (max-width: 768px) {
-            /* Hide arrows on mobile to encourage swipe interaction, or keep them subtle */
+            /* Hide arrows on mobile to encourage swipe interaction */
             .lightbox-nav-btn { display: none !important; }
+            .lightbox-close-btn { top: 1.5rem; right: 1.5rem; }
+            .lightbox-zoom-controls { bottom: 2rem; }
         }
 
         /* Layout Structure */
@@ -289,6 +310,7 @@
                 background: #00744b; color: white; border-color: #00744b; 
                 box-shadow: 0 4px 6px rgba(0,116,75,0.2);
             }
+            .desktop-toggle-btn.active:hover { background: #00744b; }
             .desktop-toggle-btn:hover:not(.active) { background: #f9f9f9; }
 
             .mobile-only-btn { display: none; }
@@ -395,7 +417,7 @@
             </div>
         </div>
 
-        <!-- UPDATED LIGHTBOX HTML with Drag/Swipe support -->
+        <!-- UPDATED LIGHTBOX HTML with Drag/Swipe support and Zoom Controls -->
         <div id="lightbox" class="lightbox-overlay" onclick="closeLightbox()">
             <div class="lightbox-close-btn" onclick="closeLightbox()"></div>
             
@@ -408,6 +430,12 @@
             </div>
 
             <div id="lightbox-next" class="lightbox-nav-btn lightbox-next" onclick="manualNavigate(1, event)">❯</div>
+
+            <!-- Zoom Controls -->
+            <div class="lightbox-zoom-controls" onclick="event.stopPropagation()">
+                <button class="zoom-btn" onclick="adjustZoom(-0.2)">−</button>
+                <button class="zoom-btn" onclick="adjustZoom(0.2)">+</button>
+            </div>
         </div>
     </div>
 
@@ -416,12 +444,23 @@
         let map;
         let markerGroup;
         
-        // --- Lightbox / Carousel State ---
+        // --- Lightbox / Carousel / Zoom State ---
         let galleryImages = [];
         let currentIdx = 0;
         let touchStartX = 0;
-        let currentTranslate = 0;
         let isDragging = false;
+        
+        // Zoom & Pan state
+        let currentScale = 1;
+        let panX = 0;
+        let panY = 0;
+        let isPinching = false;
+        let startPinchDist = 0;
+        let startScale = 1;
+        let dragStartX = 0;
+        let dragStartY = 0;
+        let startPanX = 0;
+        let startPanY = 0;
         
         // DOM Elements for Lightbox
         const lightboxContainer = document.getElementById('lightbox-img-container');
@@ -904,7 +943,7 @@
             }
         }
 
-        // --- CAROUSEL LOGIC REFACTOR (Stick-to-finger) ---
+        // --- CAROUSEL LOGIC REFACTOR (Stick-to-finger + Zoom/Pan) ---
         function openLightbox(src) {
             const galleryContainer = document.getElementById('p-gallery');
             const visibleImages = Array.from(galleryContainer.querySelectorAll('img')).filter(img => img.style.display !== 'none');
@@ -918,9 +957,10 @@
                 if (currentImageIndex === -1) currentImageIndex = 0;
             }
             
-            updateCarousel(0, false); // Initial render
+            // Reset Zoom
+            resetZoom();
+            updateCarousel(0, false); 
             document.getElementById('lightbox').classList.add('active');
-            
             document.addEventListener('keydown', handleLightboxKeydown);
         }
 
@@ -929,12 +969,28 @@
             document.removeEventListener('keydown', handleLightboxKeydown);
         }
 
-        // Helper to get image element by logical position (-1, 0, 1)
-        // We will create/reuse 3 img elements in the DOM
+        // --- ZOOM LOGIC ---
+        function resetZoom() {
+            currentScale = 1;
+            panX = 0;
+            panY = 0;
+        }
+
+        function adjustZoom(delta) {
+            let newScale = currentScale + delta;
+            if (newScale < 1) newScale = 1;
+            if (newScale > 4) newScale = 4; // Max zoom 4x
+            
+            currentScale = newScale;
+            if (currentScale === 1) {
+                panX = 0; 
+                panY = 0;
+            }
+            updateCarousel(0, false); // Re-render current with scale
+        }
+
         function updateCarousel(offsetPx = 0, animate = false) {
             const container = document.getElementById('lightbox-img-container');
-            // Ensure we have 3 img elements: prev, curr, next
-            // If not, clear and create them
             if (container.children.length !== 3) {
                 container.innerHTML = '';
                 for(let i=0; i<3; i++) {
@@ -947,7 +1003,7 @@
             const imgs = container.querySelectorAll('.lightbox-img');
             const width = container.offsetWidth;
             
-            // Indices
+            // Indices Logic
             const prevIdx = currentImageIndex > 0 ? currentImageIndex - 1 : -1;
             const nextIdx = currentImageIndex < currentGalleryImages.length - 1 ? currentImageIndex + 1 : -1;
             
@@ -974,8 +1030,19 @@
                 }
                 
                 // Apply transform
-                const finalTranslate = obj.baseOffset + offsetPx;
-                obj.el.style.transform = `translateX(${finalTranslate}px)`;
+                let transformStr = '';
+                // Only apply Zoom/Pan to current image (baseOffset 0)
+                if (obj.baseOffset === 0) {
+                    const totalTranslateX = offsetPx + panX;
+                    const totalTranslateY = panY;
+                    transformStr = `translate(${totalTranslateX}px, ${totalTranslateY}px) scale(${currentScale})`;
+                } else {
+                    // For side images, ignore pan/zoom, just offset
+                    const totalTranslateX = obj.baseOffset + offsetPx;
+                    transformStr = `translateX(${totalTranslateX}px)`;
+                }
+                
+                obj.el.style.transform = transformStr;
             });
             
             updateNavigationButtons();
@@ -1003,27 +1070,24 @@
             }
         }
         
-        // Manual Navigation (Arrows)
         function manualNavigate(direction, event) {
             if (event) event.stopPropagation();
             if (currentGalleryImages.length <= 1) return;
             
-            // Boundary Check
             if (direction === -1 && currentImageIndex === 0) return;
             if (direction === 1 && currentImageIndex === currentGalleryImages.length - 1) return;
             
-            // Animate transition roughly
+            resetZoom(); // Reset zoom on nav
+            
             const container = document.getElementById('lightbox-img-container');
             const width = container.offsetWidth;
             
-            // Slide to the direction
             updateCarousel(direction * -width, true);
             
-            // After animation, reset state
             setTimeout(() => {
                 currentImageIndex = currentImageIndex + direction;
                 updateCarousel(0, false);
-            }, 300); // match css transition
+            }, 300); 
         }
         
         function handleLightboxKeydown(e) {
@@ -1032,58 +1096,112 @@
             if (e.key === 'Escape') closeLightbox();
         }
         
-        // Touch / Drag Logic
+        // Touch / Drag / Pinch Logic
         const lightboxContainerEl = document.getElementById('lightbox-img-container');
         
         lightboxContainerEl.addEventListener('touchstart', (e) => {
-            if (currentGalleryImages.length <= 1) return;
-            isDragging = true;
-            touchStartX = e.touches[0].clientX;
+            if (e.touches.length === 2) {
+                // Pinch Start
+                isPinching = true;
+                isDragging = false;
+                startPinchDist = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                startScale = currentScale;
+            } else if (e.touches.length === 1) {
+                // Drag/Pan Start
+                isPinching = false;
+                isDragging = true;
+                touchStartX = e.touches[0].clientX;
+                dragStartX = e.touches[0].clientX;
+                dragStartY = e.touches[0].clientY;
+                startPanX = panX;
+                startPanY = panY;
+            }
+            
             // Remove animation class for instant drag
             const imgs = lightboxContainerEl.querySelectorAll('.lightbox-img');
             imgs.forEach(img => img.classList.remove('animating'));
-        }, { passive: true });
+        }, { passive: false }); // passive false to allow preventDefault if needed
         
         lightboxContainerEl.addEventListener('touchmove', (e) => {
-            if (!isDragging) return;
-            const currentX = e.touches[0].clientX;
-            let deltaX = currentX - touchStartX;
-            
-            // Add resistance if at bounds
-            if ((currentImageIndex === 0 && deltaX > 0) || 
-                (currentImageIndex === currentGalleryImages.length - 1 && deltaX < 0)) {
-                deltaX = deltaX * 0.3; // Resistance factor
+            if (isPinching && e.touches.length === 2) {
+                e.preventDefault(); // Prevent browser zoom
+                const dist = Math.hypot(
+                    e.touches[0].pageX - e.touches[1].pageX,
+                    e.touches[0].pageY - e.touches[1].pageY
+                );
+                const ratio = dist / startPinchDist;
+                let newScale = startScale * ratio;
+                if (newScale < 1) newScale = 1; 
+                if (newScale > 4) newScale = 4;
+                currentScale = newScale;
+                updateCarousel(0, false);
+            } else if (isDragging && e.touches.length === 1) {
+                const currentX = e.touches[0].clientX;
+                const currentY = e.touches[0].clientY;
+                
+                if (currentScale > 1) {
+                    // Pan Logic
+                    e.preventDefault(); // Stop scroll when zoomed
+                    panX = startPanX + (currentX - dragStartX);
+                    panY = startPanY + (currentY - dragStartY);
+                    updateCarousel(0, false);
+                } else {
+                    // Swipe Logic
+                    let deltaX = currentX - touchStartX;
+                    
+                    // Resistance at bounds
+                    if ((currentImageIndex === 0 && deltaX > 0) || 
+                        (currentImageIndex === currentGalleryImages.length - 1 && deltaX < 0)) {
+                        deltaX = deltaX * 0.3;
+                    }
+                    updateCarousel(deltaX, false);
+                }
             }
-
-            // Update positions instantly
-            updateCarousel(deltaX, false);
-        }, { passive: true });
+        }, { passive: false });
         
         lightboxContainerEl.addEventListener('touchend', (e) => {
-            if (!isDragging) return;
-            isDragging = false;
-            const currentX = e.changedTouches[0].clientX;
-            const deltaX = currentX - touchStartX;
-            const width = lightboxContainerEl.offsetWidth;
-            const threshold = width * 0.2; // 20% swipe to change
-            
-            if (deltaX < -threshold && currentImageIndex < currentGalleryImages.length - 1) {
-                // Next
-                updateCarousel(-width, true);
-                setTimeout(() => {
-                    currentImageIndex = currentImageIndex + 1;
-                    updateCarousel(0, false);
-                }, 300);
-            } else if (deltaX > threshold && currentImageIndex > 0) {
-                // Prev
-                updateCarousel(width, true);
-                setTimeout(() => {
-                    currentImageIndex = currentImageIndex - 1;
-                    updateCarousel(0, false);
-                }, 300);
-            } else {
-                // Snap back
-                updateCarousel(0, true);
+            if (isPinching) {
+                isPinching = false;
+                // If zoom ends < 1, reset to 1
+                if (currentScale < 1) {
+                    currentScale = 1;
+                    panX = 0; panY = 0;
+                    updateCarousel(0, true);
+                }
+            } else if (isDragging) {
+                isDragging = false;
+                
+                if (currentScale > 1) {
+                    // End Pan (keep position)
+                } else {
+                    // End Swipe
+                    const currentX = e.changedTouches[0].clientX;
+                    const deltaX = currentX - touchStartX;
+                    const width = lightboxContainerEl.offsetWidth;
+                    const threshold = width * 0.2; 
+                    
+                    if (deltaX < -threshold && currentImageIndex < currentGalleryImages.length - 1) {
+                        // Next
+                        updateCarousel(-width, true);
+                        setTimeout(() => {
+                            currentImageIndex = currentImageIndex + 1;
+                            updateCarousel(0, false);
+                        }, 300);
+                    } else if (deltaX > threshold && currentImageIndex > 0) {
+                        // Prev
+                        updateCarousel(width, true);
+                        setTimeout(() => {
+                            currentImageIndex = currentImageIndex - 1;
+                            updateCarousel(0, false);
+                        }, 300);
+                    } else {
+                        // Snap back
+                        updateCarousel(0, true);
+                    }
+                }
             }
         });
 
