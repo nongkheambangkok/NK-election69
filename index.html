@@ -948,8 +948,8 @@
             const width = container.offsetWidth;
             
             // Indices
-            const prevIdx = (currentImageIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
-            const nextIdx = (currentImageIndex + 1) % currentGalleryImages.length;
+            const prevIdx = currentImageIndex > 0 ? currentImageIndex - 1 : -1;
+            const nextIdx = currentImageIndex < currentGalleryImages.length - 1 ? currentImageIndex + 1 : -1;
             
             const mapImg = [
                 { el: imgs[0], idx: prevIdx, baseOffset: -width },
@@ -958,6 +958,12 @@
             ];
             
             mapImg.forEach(obj => {
+                if (obj.idx === -1 || obj.idx >= currentGalleryImages.length) {
+                     obj.el.style.display = 'none';
+                     return;
+                }
+                
+                obj.el.style.display = 'block';
                 obj.el.src = currentGalleryImages[obj.idx];
                 
                 // Toggle animation class
@@ -968,14 +974,8 @@
                 }
                 
                 // Apply transform
-                // If only 1 image, handle gracefully
-                if (currentGalleryImages.length <= 1 && obj.baseOffset !== 0) {
-                    obj.el.style.display = 'none';
-                } else {
-                    obj.el.style.display = 'block';
-                    const finalTranslate = obj.baseOffset + offsetPx;
-                    obj.el.style.transform = `translateX(${finalTranslate}px)`;
-                }
+                const finalTranslate = obj.baseOffset + offsetPx;
+                obj.el.style.transform = `translateX(${finalTranslate}px)`;
             });
             
             updateNavigationButtons();
@@ -987,8 +987,18 @@
             if (currentGalleryImages.length <= 1) {
                 prevBtn.style.display = 'none';
                 nextBtn.style.display = 'none';
+                return;
+            }
+            
+            if (currentImageIndex === 0) {
+                prevBtn.style.display = 'none';
             } else {
                 prevBtn.style.display = 'flex';
+            }
+
+            if (currentImageIndex === currentGalleryImages.length - 1) {
+                nextBtn.style.display = 'none';
+            } else {
                 nextBtn.style.display = 'flex';
             }
         }
@@ -997,6 +1007,10 @@
         function manualNavigate(direction, event) {
             if (event) event.stopPropagation();
             if (currentGalleryImages.length <= 1) return;
+            
+            // Boundary Check
+            if (direction === -1 && currentImageIndex === 0) return;
+            if (direction === 1 && currentImageIndex === currentGalleryImages.length - 1) return;
             
             // Animate transition roughly
             const container = document.getElementById('lightbox-img-container');
@@ -1007,7 +1021,7 @@
             
             // After animation, reset state
             setTimeout(() => {
-                currentImageIndex = (currentImageIndex + direction + currentGalleryImages.length) % currentGalleryImages.length;
+                currentImageIndex = currentImageIndex + direction;
                 updateCarousel(0, false);
             }, 300); // match css transition
         }
@@ -1033,7 +1047,14 @@
         lightboxContainerEl.addEventListener('touchmove', (e) => {
             if (!isDragging) return;
             const currentX = e.touches[0].clientX;
-            const deltaX = currentX - touchStartX;
+            let deltaX = currentX - touchStartX;
+            
+            // Add resistance if at bounds
+            if ((currentImageIndex === 0 && deltaX > 0) || 
+                (currentImageIndex === currentGalleryImages.length - 1 && deltaX < 0)) {
+                deltaX = deltaX * 0.3; // Resistance factor
+            }
+
             // Update positions instantly
             updateCarousel(deltaX, false);
         }, { passive: true });
@@ -1046,18 +1067,18 @@
             const width = lightboxContainerEl.offsetWidth;
             const threshold = width * 0.2; // 20% swipe to change
             
-            if (deltaX < -threshold) {
+            if (deltaX < -threshold && currentImageIndex < currentGalleryImages.length - 1) {
                 // Next
                 updateCarousel(-width, true);
                 setTimeout(() => {
-                    currentImageIndex = (currentImageIndex + 1) % currentGalleryImages.length;
+                    currentImageIndex = currentImageIndex + 1;
                     updateCarousel(0, false);
                 }, 300);
-            } else if (deltaX > threshold) {
+            } else if (deltaX > threshold && currentImageIndex > 0) {
                 // Prev
                 updateCarousel(width, true);
                 setTimeout(() => {
-                    currentImageIndex = (currentImageIndex - 1 + currentGalleryImages.length) % currentGalleryImages.length;
+                    currentImageIndex = currentImageIndex - 1;
                     updateCarousel(0, false);
                 }, 300);
             } else {
